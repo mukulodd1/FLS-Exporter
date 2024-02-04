@@ -35,12 +35,11 @@ export default class FLSExport extends LightningElement {
     _getMetaDataOptions(){
         this.showSpinner=true;
         getMetaDataOptions({}).then(res=>{
-            console.log('Response is : '+JSON.stringify(res));
             if(res!=null){
                 this.response=res;
             }
         }).catch(err=>{
-            console.log('Error: '+JSON.stringify(err));
+            console.error('Error: '+JSON.stringify(err));
         }).finally(fnl=>{
             this.showSpinner=false;
         });
@@ -64,10 +63,8 @@ export default class FLSExport extends LightningElement {
     * Method to fetch Permissions.
     */
     _getPermissionsData(){
-        console.log('JSON String is : '+JSON.stringify(this.dataObj));
         this.showSpinner=true;
         getPermissionsData({'jsonString':JSON.stringify(this.dataObj)}).then(res=>{
-            console.log('Result is: '+JSON.stringify(res));
             if(res!=null){
                 this.excelData=res;
                 this.generateSheetProfile();
@@ -100,10 +97,18 @@ export default class FLSExport extends LightningElement {
           XLS.writeFile(wb, "sheetjs.xlsx");
     }
 
+    //Column Header for Object Permission
+    columnOPTitle = ['OBJECT LEVEL PERMISSION'];
+    columnOPHeaders = ['Create','Read', 'Edit','Delete','View All','Modify All'];
 
-    columnHeaders = ['Field', 'Read Access', 'Write Access'];
+    //Column Headers for Fields
+    columnFPTitle = ['FIELD LEVEL PERMISSIONS']
+    columnFPHeaders = ['Field', 'Read Access', 'Write Access'];
     wscols = [
         {wch: 30}, // "characters"
+        {wch: 20},
+        {wch: 20},
+        {wch: 20},
         {wch: 20},
         {wch: 20}
     ];
@@ -125,11 +130,14 @@ export default class FLSExport extends LightningElement {
             let sObjectData =  profile.objectNameToWrapperMap;
             const wb = XLS.utils.book_new();
             for(const objectName in sObjectData){
-                  if(sObjectData[objectName].fieldPermissionList==null || sObjectData[objectName].fieldPermissionList.length === 0){
-                    continue;
-                  }           
-                  let sheetData = this.getSheetData(sObjectData[objectName].fieldPermissionList);
-                  let ws = XLS.utils.aoa_to_sheet(sheetData);
+                  let objectPermission  = this.getObjectData(sObjectData[objectName]);   
+                  let fieldPermission=[];   
+                  if(sObjectData[objectName].fieldPermissionList!=null && sObjectData[objectName].fieldPermissionList.length > 0){
+                    fieldPermission = this.getSheetData(sObjectData[objectName].fieldPermissionList);
+                  }       
+
+                  let permisionData  = [...objectPermission,[],...fieldPermission];
+                  let ws = XLS.utils.aoa_to_sheet(permisionData);
                   ws['!cols'] = this.wscols;
                   XLS.utils.book_append_sheet(wb, ws, objectName);
             }
@@ -157,7 +165,9 @@ export default class FLSExport extends LightningElement {
             for(const objectName in sObjectData){
                   if(sObjectData[objectName].fieldPermissionList==null || sObjectData[objectName].fieldPermissionList.length === 0){
                     continue;
-                  }           
+                  }     
+                  
+                  //FLS Permission Data for Each Object
                   let sheetData = this.getSheetData(sObjectData[objectName].fieldPermissionList);
                   let ws = XLS.utils.aoa_to_sheet(sheetData);
                   ws['!cols'] = this.wscols;
@@ -167,12 +177,31 @@ export default class FLSExport extends LightningElement {
         }
     }
 
+    /*
+        Description : Method to  get Field Permission Data
+    */
     getSheetData(permissionList){
-            let data = [this.columnHeaders];
+            let data = [this.columnFPTitle, this.columnFPHeaders];
             permissionList.forEach(ele=>{
                     let row = [ele.field,ele.readAccess, ele.writeAccess];
                     data.push(row);
             });
+        return data;
+    }
+
+    /*
+        Description : Method to Get Object Permission Data
+    */
+    getObjectData(objPerm){
+        let data = [this.columnOPTitle,this.columnOPHeaders];
+        let permissionData = [objPerm.createPermission, 
+                         objPerm.viewPermission, 
+                         objPerm.editPermission, 
+                         objPerm.deletePermission,
+                         objPerm.viewPermission,
+                         objPerm.modifyAllPermission];
+                
+        data = [...data,permissionData];
         return data;
     }
 }
