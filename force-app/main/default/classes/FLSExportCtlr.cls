@@ -67,7 +67,6 @@
         try{
             FLSInputWrapper inputWrapper = (FLSInputWrapper)JSON.deserialize(jsonString, FLSInputWrapper.class);
             FLSExportWrapper exportWrapper = new FLSExportWrapper();
-            // System.assert(false,JSON.serialize(inputWrapper));
             
             
             List<String> profileList = new List<String>();
@@ -100,9 +99,7 @@
             
             Map <String, ObjectPermissions> objectPermMap = getObjectPermissions(inputWrapper.objectList,profileList, permissionSetList);
             
-            // System.assert(false,objectPermMap);
             // Loop for Profile Permissions
-
             for(FieldPermissions permission : permissionList){
                 
                 //Check to pass only profiles
@@ -168,27 +165,6 @@
         catch(Exception ex){
             throw new AuraHandledException(ex.getMessage());
         }
-    }
-    
-    /*
-    * description : Method to Fetch Map<Profile_PermissionSetName : String, Map<ObjectName : String, ObjectPermission>>
-    */
-    public static Map<String,Map<String,ObjectPermissions>> getObjectPermissionMap(List<ObjectPermissions> objPermList){
-        Map<String,Map<String,ObjectPermissions>> objPermMap =  new Map<String,Map<String,ObjectPermissions>>();
-        for(ObjectPermissions objPerm : objPermList){
-            
-            //If Permission Set
-            if(objPerm.Parent.IsOwnedByProfile == false){
-                if(!objPermMap.containsKey(objPerm.Parent.label)){
-                    //Initializing objPermMap for the Document Object
-                    objPermMap.put(objPerm.Parent.Label, new Map<String,ObjectPermissions>());
-                }
-            }else {
-
-            }
-            //If Profile 
-        }
-        return new Map<String,Map<String,ObjectPermissions>>();
     }
 
     /*
