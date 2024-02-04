@@ -163,15 +163,16 @@ export default class FLSExport extends LightningElement {
             let sObjectData =  permissionSet.objectNameToWrapperMap;
             const wb = XLS.utils.book_new();
             for(const objectName in sObjectData){
-                  if(sObjectData[objectName].fieldPermissionList==null || sObjectData[objectName].fieldPermissionList.length === 0){
-                    continue;
-                  }     
-                  
-                  //FLS Permission Data for Each Object
-                  let sheetData = this.getSheetData(sObjectData[objectName].fieldPermissionList);
-                  let ws = XLS.utils.aoa_to_sheet(sheetData);
-                  ws['!cols'] = this.wscols;
-                  XLS.utils.book_append_sheet(wb, ws, objectName);
+                let objectPermission  = this.getObjectData(sObjectData[objectName]);   
+                let fieldPermission=[];   
+                if(sObjectData[objectName].fieldPermissionList!=null && sObjectData[objectName].fieldPermissionList.length > 0){
+                  fieldPermission = this.getSheetData(sObjectData[objectName].fieldPermissionList);
+                }       
+
+                let permisionData  = [...objectPermission,[],...fieldPermission];
+                let ws = XLS.utils.aoa_to_sheet(permisionData);
+                ws['!cols'] = this.wscols;
+                XLS.utils.book_append_sheet(wb, ws, objectName);
             }
             XLS.writeFile(wb, permissionSetName +'|PermissionSet.xlsx');
         }
