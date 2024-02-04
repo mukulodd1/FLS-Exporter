@@ -3,7 +3,7 @@
  ** Author : mukulodd1@gmail.com | Mukul Odd | Sep 24, 2022
  */
 
-public with sharing class FLSExportCtlr {
+ public with sharing class FLSExportCtlr {
     //SELECT SObjectType, FROM ObjectPermissions GROUP BY SObjectType ORDER BY SObjectType ASC
 
     @AuraEnabled
@@ -81,15 +81,28 @@ public with sharing class FLSExportCtlr {
                 permissionSetList = inputWrapper.permissionSetList;
             }
 
-            //Profiles
+            //Querying Field Permissions
             List<FieldPermissions> permissionList = [SELECT sObjectType, Field, PermissionsRead, PermissionsEdit, Parent.Profile.Name,Parent.IsOwnedByProfile,Parent.Label 
                                         FROM FieldPermissions 
                                         WHERE ParentId IN ( SELECT Id FROM permissionset WHERE PermissionSet.Profile.Name IN:profileList
                                                            OR permissionset.label IN :permissionSetList )
                                         AND sObjectType IN : inputWrapper.objectList ORDER BY sObjectType];
+
+            //Querying Object Permissions
+            List<ObjectPermissions> objectPermList = [SELECT Id,SObjectType,Parent.Label, Parent.Profile.Name, Parent.IsOwnedByProfile,   
+                                                      PermissionsRead,PermissionsCreate,
+                                                      PermissionsViewAllRecords, PermissionsModifyAllRecords,
+                                                      PermissionsEdit, PermissionsDelete 
+                                                      FROM ObjectPermissions WHERE
+                                                      ParentId IN ( SELECT Id FROM permissionset WHERE PermissionSet.Profile.Name IN:profileList
+                                                      OR permissionset.label IN :permissionSetList ) AND
+                                                      SObjectType IN : inputWrapper.objectList ORDER BY sObjectType];
             
-           
+            Map <String, ObjectPermissions> objectPermMap = getObjectPermissions(inputWrapper.objectList,profileList, permissionSetList);
+            
+            // System.assert(false,objectPermMap);
             // Loop for Profile Permissions
+
             for(FieldPermissions permission : permissionList){
                 
                 //Check to pass only profiles
@@ -112,6 +125,7 @@ public with sharing class FLSExportCtlr {
                 }else {
                     objectWrapper = new ObjectPermissionWrapper();
                     objectWrapper.objectName = permission.sObjectType;
+                    populateObjectPermissions(objectWrapper, profileWrapper.profileName, objectPermMap);
                     profileWrapper.objectNameToWrapperMap.put(permission.sObjectType, objectWrapper);
                 }
                 //Configuring Fields
@@ -142,6 +156,7 @@ public with sharing class FLSExportCtlr {
                 }else {
                     objectWrapper = new ObjectPermissionWrapper();
                     objectWrapper.objectName = permission.sObjectType;
+                    populateObjectPermissions(objectWrapper, permissionSetWrapper.permissionSetName, objectPermMap);
                     permissionSetWrapper.objectNameToWrapperMap.put(permission.sObjectType, objectWrapper);
                 }
                 //Configuring Fields
@@ -153,7 +168,84 @@ public with sharing class FLSExportCtlr {
         catch(Exception ex){
             throw new AuraHandledException(ex.getMessage());
         }
-    } 
+    }
+    
+    /*
+    * description : Method to Fetch Map<Profile_PermissionSetName : String, Map<ObjectName : String, ObjectPermission>>
+    */
+    public static Map<String,Map<String,ObjectPermissions>> getObjectPermissionMap(List<ObjectPermissions> objPermList){
+        Map<String,Map<String,ObjectPermissions>> objPermMap =  new Map<String,Map<String,ObjectPermissions>>();
+        for(ObjectPermissions objPerm : objPermList){
+            
+            //If Permission Set
+            if(objPerm.Parent.IsOwnedByProfile == false){
+                if(!objPermMap.containsKey(objPerm.Parent.label)){
+                    //Initializing objPermMap for the Document Object
+                    objPermMap.put(objPerm.Parent.Label, new Map<String,ObjectPermissions>());
+                }
+            }else {
+
+            }
+            //If Profile 
+        }
+        return new Map<String,Map<String,ObjectPermissions>>();
+    }
+
+    /*
+    *  Description : Method to fetch Object Permission
+    */
+    public static Map<String,ObjectPermissions> getObjectPermissions(List<String> objectList,
+    List<String> profileList, List<String> permissionList){
+         
+         Map<String,ObjectPermissions> objPermWrapper = new Map<String,ObjectPermissions>();
+
+         //Querying Object Permissions
+         List<ObjectPermissions> objectPermList = [SELECT Id,SObjectType,Parent.Label, 
+                    Parent.Profile.Name, Parent.IsOwnedByProfile,   
+                    PermissionsRead,PermissionsCreate,
+                    PermissionsViewAllRecords, PermissionsModifyAllRecords,
+                    PermissionsEdit, PermissionsDelete 
+                    FROM ObjectPermissions WHERE
+                    ParentId IN ( SELECT Id FROM permissionset WHERE PermissionSet.Profile.Name IN:profileList
+                    OR permissionset.label IN :permissionList ) AND
+                    SObjectType IN : objectList ORDER BY sObjectType];
+
+         for(ObjectPermissions objPerm : objectPermList){
+
+            //Checking if the Object Permission Belong to Profile
+            if(String.isNotBlank(objPerm.Parent.Profile.Name)){
+                objPermWrapper.put(getObjPermissionMapKey(objPerm.Parent.Profile.Name,objPerm.sObjectType), objPerm);
+            }
+            //If Object Permission Does not belong to Profile then it
+            // Belongs to Permission Set.
+            else{
+                objPermWrapper.put(getObjPermissionMapKey(objPerm.Parent.Label,objPerm.sObjectType), objPerm);
+            }
+         }
+         return objPermWrapper;
+    }
+
+    /*
+        Description : Method to getObject Permission Map Key
+    */
+    private static string getObjPermissionMapKey(String resName, String objName){
+        return resName +'::'+objName;
+    }
+
+    /*
+        Description : Method to Populate Object Permissions
+    */
+    private static void populateObjectPermissions(ObjectPermissionWrapper wrap, 
+            string resName,  Map <String, ObjectPermissions> objectPermMap){
+        ObjectPermissions objPerm        = objectPermMap.get(getObjPermissionMapKey(resName,wrap.objectName));   
+        
+        wrap.createPermission     = objPerm.PermissionsCreate;
+        wrap.viewPermission       = objPerm.PermissionsRead;
+        wrap.editPermission       = objPerm.PermissionsEdit;
+        wrap.deletePermission     = objPerm.PermissionsDelete;
+        wrap.viewAllPermission    = objPerm.PermissionsViewAllRecords;
+        wrap.modifyAllPermission  = objPerm.PermissionsModifyAllRecords;
+    }
     
     /*
     * description : Input FLS Wrapper
@@ -218,6 +310,12 @@ public with sharing class FLSExportCtlr {
     */
     public class ObjectPermissionWrapper{
         @AuraEnabled public string objectName;
+        @AuraEnabled public Boolean viewPermission;
+        @AuraEnabled public Boolean deletePermission;
+        @AuraEnabled public Boolean createPermission;
+        @AuraEnabled public Boolean editPermission;
+        @AuraEnabled public Boolean viewAllPermission;
+        @AuraEnabled public Boolean modifyAllPermission;
         @AuraEnabled public List<FieldPermissionWrapper> fieldPermissionList;
 
 
